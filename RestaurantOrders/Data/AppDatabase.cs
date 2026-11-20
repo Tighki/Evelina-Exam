@@ -99,6 +99,36 @@ public sealed class AppDatabase
         return null;
     }
 
+    public AuthResponse CheckPassword(string login, string password)
+    {
+        var user = FindUser(login);
+        if (user == null)
+            return new AuthResponse { Message = "Неверный логин или пароль." };
+
+        if (user.Role == BlockedRole)
+            return new AuthResponse { Blocked = true, Message = BlockedMessage, FailedAttempts = user.FailedAttempts };
+
+        if (user.Password != password)
+        {
+            user = AddFailure(user.Id);
+            if (user.Role == BlockedRole)
+                return new AuthResponse { Blocked = true, Message = BlockedMessage, FailedAttempts = user.FailedAttempts };
+            return new AuthResponse
+            {
+                Message = $"Неверный логин или пароль. Осталось попыток: {MaxAttempts - user.FailedAttempts}.",
+                FailedAttempts = user.FailedAttempts
+            };
+        }
+
+        return new AuthResponse
+        {
+            Success = true,
+            User = user,
+            Message = "Пароль верный. Соберите пазл из фрагментов.",
+            FailedAttempts = user.FailedAttempts
+        };
+    }
+
     public AuthResponse Authorize(string login, string password, bool puzzleSolved)
     {
         var user = FindUser(login);

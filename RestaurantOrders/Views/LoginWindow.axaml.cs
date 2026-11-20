@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using RestaurantOrders.Controls;
 using RestaurantOrders.Data;
@@ -10,6 +12,7 @@ public partial class LoginWindow : Window
 {
     private readonly AppDatabase _db = new();
     private readonly PuzzleBoard _board;
+    private UserAccount? _pending;
     private UserAccount? _authorized;
 
     public LoginWindow()
@@ -19,7 +22,7 @@ public partial class LoginWindow : Window
         _board.Changed += (_, _) =>
         {
             if (_board.IsSolved)
-                ShowMessage("Пазл собран верно. Нажмите «Войти».", ok: true);
+                TryFinish();
             else
                 NextButton.IsVisible = false;
         };
@@ -36,27 +39,6 @@ public partial class LoginWindow : Window
             ShowMessage("Регистрация выполнена. Войдите, используя новый логин.", ok: true);
     }
 
-    private void OnCheckPuzzle(object? sender, RoutedEventArgs e)
-    {
-        if (_board.IsSolved)
-        {
-            ShowMessage("Пазл собран верно. Нажмите «Войти».", ok: true);
-            return;
-        }
-
-        var login = LoginBox.Text?.Trim() ?? "";
-        var password = PasswordBox.Text ?? "";
-        var known = _db.FindUser(login);
-        if (known != null && known.Password == password && known.Role != AppDatabase.BlockedRole)
-        {
-            Apply(_db.Authorize(login, password, puzzleSolved: false));
-            return;
-        }
-
-        _board.Shuffle();
-        ShowMessage("Пазл собран неверно.", ok: false);
-    }
-
     private void OnLogin(object? sender, RoutedEventArgs e)
     {
         var login = LoginBox.Text?.Trim() ?? "";
@@ -67,17 +49,88 @@ public partial class LoginWindow : Window
             return;
         }
 
-        Apply(_db.Authorize(login, password, _board.IsSolved));
+        var result = _db.CheckPassword(login, password);
+        if (!result.Success || result.User == null)
+        {
+            _pending = null;
+            _authorized = null;
+            CaptchaPanel.IsVisible = false;
+            NextButton.IsVisible = false;
+            ShowMessage(result.Message, ok: false);
+            return;
+        }
+
+        _pending = result.User;
+        _authorized = null;
+        CaptchaPanel.IsVisible = true;
+        if (_board.IsSolved)
+        {
+            TryFinish();
+            return;
+        }
+
+        NextButton.IsVisible = false;
+        ShowMessage("Пароль верный. Соберите пазл из фрагментов — затем появится кнопка «Далее».", ok: true);
+        CaptchaPanel.BringIntoView();
     }
 
-    private void Apply(AuthResponse result)
+    private void OnCheckPuzzle(object? sender, RoutedEventArgs e)
     {
-        ShowMessage(result.Message, result.Success);
-        if (result.PuzzleFailed)
-            _board.Shuffle();
+        if (_pending == null)
+        {
+            ShowMessage("Сначала введите логин и пароль и нажмите «Войти».", ok: false);
+            return;
+        }
 
-        NextButton.IsVisible = result.Success;
-        _authorized = result.Success ? result.User : null;
+        if (_board.IsSolved)
+        {
+            TryFinish();
+            return;
+        }
+
+        var result = _db.Authorize(_pending.Login, _pending.Password, puzzleSolved: false);
+        ShowMessage(result.Message, ok: false);
+        if (result.Blocked)
+        {
+            _pending = null;
+            _authorized = null;
+            CaptchaPanel.IsVisible = false;
+            NextButton.IsVisible = false;
+            return;
+        }
+
+        _board.Shuffle();
+    }
+
+    private void TryFinish()
+    {
+        if (_pending == null || !_board.IsSolved)
+            return;
+
+        var result = _db.Authorize(_pending.Login, _pending.Password, puzzleSolved: true);
+        if (!result.Success || result.User == null)
+        {
+            ShowMessage(result.Message, ok: false);
+            if (result.Blocked)
+            {
+                _pending = null;
+                CaptchaPanel.IsVisible = false;
+            }
+            NextButton.IsVisible = false;
+            return;
+        }
+
+        _authorized = result.User;
+        CaptchaPanel.IsVisible = true;
+        NextButton.IsVisible = true;
+        NextButton.Content = result.User.Role switch
+        {
+            "Администратор" => "Далее — страница администратора",
+            "Модератор" => "Далее — страница модератора",
+            _ => "Далее — страница пользователя"
+        };
+        ShowMessage("Пазл собран верно. Нажмите «Далее».", ok: true);
+        NextButton.BringIntoView();
     }
 
     private void OnNext(object? sender, RoutedEventArgs e)
@@ -92,6 +145,10 @@ public partial class LoginWindow : Window
             "Пользователь" => new UserWindow(_authorized),
             _ => throw new InvalidOperationException("Для этой роли нет страницы.")
         };
+
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.MainWindow = next;
+
         next.Show();
         Close();
     }

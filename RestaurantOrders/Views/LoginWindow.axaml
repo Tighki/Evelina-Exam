@@ -33,27 +33,28 @@
         <TextBlock Text="Пароль" Foreground="#6E2436" Margin="0,6,0,0" />
         <TextBox x:Name="PasswordBox" PasswordChar="●" Watermark="Введите пароль" />
 
-        <TextBlock Text="Капча-пазл" FontWeight="SemiBold" Foreground="#6E2436" Margin="0,10,0,0" />
-        <TextBlock Text="Соберите изображение по образцу: нажмите на два фрагмента, чтобы поменять их местами."
-                   TextWrapping="Wrap" Foreground="#5C6B73" FontSize="13" />
-        <StackPanel Orientation="Horizontal" Spacing="16">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Образец" FontSize="12" Foreground="#5C6B73" />
-            <Border Background="#6E2436" Padding="4" CornerRadius="4">
-              <ContentControl x:Name="PreviewHost" />
-            </Border>
-          </StackPanel>
-          <StackPanel Spacing="4">
-            <TextBlock Text="Фрагменты" FontSize="12" Foreground="#5C6B73" />
-            <ContentControl x:Name="PuzzleHost" />
-          </StackPanel>
-        </StackPanel>
-
         <TextBlock x:Name="MessageText" TextWrapping="Wrap" MinHeight="36" FontSize="14" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Classes="ghost" Content="Проверить пазл" Click="OnCheckPuzzle" />
-          <Button Classes="accent" Content="Войти" Click="OnLogin" />
-          <Button x:Name="NextButton" Classes="gold" Content="Далее" IsVisible="False" Click="OnNext" />
+        <Button Classes="accent" Content="Войти" Click="OnLogin" HorizontalAlignment="Left" MinWidth="140" />
+
+        <StackPanel x:Name="CaptchaPanel" IsVisible="False" Spacing="8" Margin="0,8,0,0">
+          <TextBlock Text="Капча-пазл" FontWeight="SemiBold" Foreground="#6E2436" />
+          <TextBlock Text="Соберите изображение по образцу: нажмите на два фрагмента, чтобы поменять их местами. Когда пазл сойдётся, появится кнопка «Далее»."
+                     TextWrapping="Wrap" Foreground="#5C6B73" FontSize="13" />
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Образец" FontSize="12" Foreground="#5C6B73" />
+              <Border Background="#6E2436" Padding="4" CornerRadius="4">
+                <ContentControl x:Name="PreviewHost" />
+              </Border>
+            </StackPanel>
+            <StackPanel Spacing="4">
+              <TextBlock Text="Фрагменты" FontSize="12" Foreground="#5C6B73" />
+              <ContentControl x:Name="PuzzleHost" />
+            </StackPanel>
+          </StackPanel>
+          <Button Classes="ghost" Content="Проверить пазл" Click="OnCheckPuzzle" HorizontalAlignment="Left" />
+          <Button x:Name="NextButton" Classes="gold" Content="Далее" IsVisible="False" Click="OnNext"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" MinHeight="46" FontSize="18" />
         </StackPanel>
         <Button Classes="link" Content="Нет учётной записи? Регистрация" Click="OnRegister" Margin="0,8,0,0" HorizontalAlignment="Left" />
       </StackPanel>

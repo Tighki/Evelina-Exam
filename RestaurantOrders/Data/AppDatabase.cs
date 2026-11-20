@@ -28,7 +28,7 @@ public sealed class AppDatabase
         if (Count(conn, "Users") == 0)
             InsertUsers(conn);
         if (!existed)
-            InsertOrders(conn);
+            InsertCarsAndSales(conn);
     }
 
     public string FilePath => _path;
@@ -47,23 +47,22 @@ public sealed class AppDatabase
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "EvelinaExam",
-            "RestaurantOrders");
-        return Path.Combine(dir, "restaurant.db");
+            "CarDealership");
+        return Path.Combine(dir, "dealership.db");
     }
 
     public IReadOnlyList<QueryInfo> Queries { get; } =
     [
-        new("all", "1. Все заказы", "", ""),
-        new("status", "2. Заказы по статусу", "Статус", "Подан"),
-        new("table", "3. Заказы по номеру стола", "Стол", "1"),
-        new("sum_above", "4. Сумма позиции больше указанной", "Сумма от", "500"),
-        new("total", "5. Общая сумма заказов", "", ""),
-        new("by_status", "6. Количество по статусам", "", ""),
-        new("top_dishes", "7. Топ блюд по количеству", "", ""),
-        new("date", "8. Заказы за дату", "Дата", "20.11.2026"),
-        new("drinks", "9. Только напитки", "", ""),
-        new("dishes", "10. Только блюда", "", ""),
-        new("describe", "11. Описание позиций и скидка напитков", "", "")
+        new("all", "1. Все автомобили", "", ""),
+        new("brand", "2. Автомобили марки", "Марка", "Kia"),
+        new("status", "3. Автомобили по статусу", "Статус", "В наличии"),
+        new("price_to", "4. Цена не выше указанной", "Цена до", "1500000"),
+        new("year_from", "5. Год выпуска от", "Год", "2021"),
+        new("by_status", "6. Количество и сумма по статусам", "", ""),
+        new("sales", "7. Все продажи", "", ""),
+        new("sale_date", "8. Продажи за дату", "Дата", "20.11.2026"),
+        new("expensive", "9. Самые дорогие автомобили", "", ""),
+        new("sold", "10. Проданные автомобили и покупатели", "", "")
     ];
 
     public UserAccount? FindUser(string login)
@@ -288,100 +287,112 @@ public sealed class AppDatabase
         return null;
     }
 
-    public List<OrderRow> SearchOrders(string text)
+    public IReadOnlyList<string> CheckConnection()
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+        using var reader = cmd.ExecuteReader();
+        var tables = new List<string>();
+        while (reader.Read())
+            tables.Add(reader.GetString(0));
+        return tables;
+    }
+
+    public List<CarRow> SearchCars(string text)
     {
         var like = "%" + text.Trim() + "%";
-        return ReadOrders("""
-            SELECT Id, ItemName, ItemKind, Quantity, Price, TableNumber, OrderDate, Status
-            FROM Orders
+        return ReadCars("""
+            SELECT Id, Brand, Model, Year, Color, Price, Vin, Status
+            FROM Cars
             WHERE @q = ''
-               OR ItemName LIKE @like OR ItemKind LIKE @like OR Status LIKE @like
-               OR CAST(TableNumber AS TEXT) LIKE @like
+               OR Brand LIKE @like OR Model LIKE @like OR Color LIKE @like
+               OR Vin LIKE @like OR Status LIKE @like OR CAST(Year AS TEXT) LIKE @like
             ORDER BY Id
             """, ("@q", text.Trim()), ("@like", like));
     }
 
-    public List<OrderRow> SortOrders(string field, bool descending)
+    public List<CarRow> SortCars(string field, bool descending)
     {
         var column = field switch
         {
-            "Amount" => "Price * Quantity",
-            "OrderDate" => "OrderDate",
-            "TableNumber" => "TableNumber",
+            "Price" => "Price",
+            "Year" => "Year",
             _ => "Id"
         };
         var direction = descending ? "DESC" : "ASC";
-        return ReadOrders($"""
-            SELECT Id, ItemName, ItemKind, Quantity, Price, TableNumber, OrderDate, Status
-            FROM Orders
+        return ReadCars($"""
+            SELECT Id, Brand, Model, Year, Color, Price, Vin, Status
+            FROM Cars
             ORDER BY {column} {direction}, Id
             """);
     }
 
-    public string? SaveOrders(IReadOnlyList<OrderRow> rows)
+    public string? SaveCars(IReadOnlyList<CarRow> rows)
     {
-        var parsed = new List<(int Id, string Name, string Kind, int Qty, decimal Price, int Table, string Date, string Status)>();
+        var parsed = new List<(int Id, string Brand, string Model, int Year, string Color, decimal Price, string Vin, string Status)>();
+        var vins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < rows.Count; i++)
         {
             var row = rows[i];
             var line = i + 1;
-            if (string.IsNullOrWhiteSpace(row.ItemName))
-                return $"Строка {line}: укажите название позиции.";
-            if (!int.TryParse(row.Quantity.Trim(), out var quantity) || quantity <= 0)
-                return $"Строка {line}: количество должно быть целым числом больше нуля.";
+            if (string.IsNullOrWhiteSpace(row.Brand) || string.IsNullOrWhiteSpace(row.Model))
+                return $"Строка {line}: укажите марку и модель.";
+            if (!int.TryParse(row.Year.Trim(), out var year) || year < 1950 || year > 2035)
+                return $"Строка {line}: год выпуска — число от 1950 до 2035.";
+            if (string.IsNullOrWhiteSpace(row.Color))
+                return $"Строка {line}: укажите цвет.";
             if (!TryParseMoney(row.Price, out var price) || price < 0)
                 return $"Строка {line}: цена должна быть неотрицательным числом.";
-            if (!int.TryParse(row.TableNumber.Trim(), out var table) || table <= 0)
-                return $"Строка {line}: номер стола должен быть целым числом больше нуля.";
-            if (!TryParseDate(row.OrderDate, out var date))
-                return $"Строка {line}: дата в формате дд.мм.гггг.";
+            var vin = row.Vin.Trim().ToUpperInvariant();
+            if (vin.Length < 6)
+                return $"Строка {line}: VIN должен содержать минимум 6 символов.";
+            if (!vins.Add(vin))
+                return $"Строка {line}: VIN {vin} повторяется в таблице.";
             if (string.IsNullOrWhiteSpace(row.Status))
                 return $"Строка {line}: укажите статус.";
-
-            MenuItem item;
-            try
-            {
-                item = MenuItem.Create(row.ItemKind, row.ItemName, price);
-            }
-            catch (FormatException ex)
-            {
-                return $"Строка {line}: {ex.Message}";
-            }
-
-            parsed.Add((row.Id, item.Name, item.Kind, quantity, price, table, date.ToString("yyyy-MM-dd"), row.Status.Trim()));
+            parsed.Add((row.Id, row.Brand.Trim(), row.Model.Trim(), year, row.Color.Trim(), price, vin, row.Status.Trim()));
         }
 
         using var conn = Open();
         using var tx = conn.BeginTransaction();
-        foreach (var order in parsed)
+        foreach (var car in parsed)
         {
+            using var exists = conn.CreateCommand();
+            exists.Transaction = tx;
+            exists.CommandText = "SELECT COUNT(*) FROM Cars WHERE Vin = @vin AND Id <> @id";
+            exists.Parameters.Add(P("@vin", car.Vin));
+            exists.Parameters.Add(P("@id", car.Id));
+            if (Convert.ToInt32(exists.ExecuteScalar()) > 0)
+                return $"VIN {car.Vin} уже есть в базе.";
+
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
-            if (order.Id == 0)
+            if (car.Id == 0)
             {
                 cmd.CommandText = """
-                    INSERT INTO Orders (ItemName, ItemKind, Quantity, Price, TableNumber, OrderDate, Status)
-                    VALUES (@name, @kind, @qty, @price, @table, @date, @status)
+                    INSERT INTO Cars (Brand, Model, Year, Color, Price, Vin, Status)
+                    VALUES (@brand, @model, @year, @color, @price, @vin, @status)
                     """;
             }
             else
             {
                 cmd.CommandText = """
-                    UPDATE Orders
-                    SET ItemName = @name, ItemKind = @kind, Quantity = @qty, Price = @price,
-                        TableNumber = @table, OrderDate = @date, Status = @status
+                    UPDATE Cars
+                    SET Brand = @brand, Model = @model, Year = @year, Color = @color,
+                        Price = @price, Vin = @vin, Status = @status
                     WHERE Id = @id
                     """;
-                cmd.Parameters.Add(P("@id", order.Id));
+                cmd.Parameters.Add(P("@id", car.Id));
             }
 
-            cmd.Parameters.Add(P("@name", order.Name));
-            cmd.Parameters.Add(P("@kind", order.Kind));
-            cmd.Parameters.Add(P("@qty", order.Qty));
-            cmd.Parameters.Add(P("@price", order.Price));
-            cmd.Parameters.Add(P("@table", order.Table));
-            cmd.Parameters.Add(P("@date", order.Date));
-            cmd.Parameters.Add(P("@status", order.Status));
+            cmd.Parameters.Add(P("@brand", car.Brand));
+            cmd.Parameters.Add(P("@model", car.Model));
+            cmd.Parameters.Add(P("@year", car.Year));
+            cmd.Parameters.Add(P("@color", car.Color));
+            cmd.Parameters.Add(P("@price", car.Price));
+            cmd.Parameters.Add(P("@vin", car.Vin));
+            cmd.Parameters.Add(P("@status", car.Status));
             cmd.ExecuteNonQuery();
         }
 
@@ -389,11 +400,120 @@ public sealed class AppDatabase
         return null;
     }
 
-    public void DeleteOrder(int id)
+    public string? DeleteCar(int id)
+    {
+        using var conn = Open();
+        using var check = conn.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM Sales WHERE CarId = @id";
+        check.Parameters.Add(P("@id", id));
+        if (Convert.ToInt32(check.ExecuteScalar()) > 0)
+            return "Нельзя удалить автомобиль: по нему есть продажи. Сначала удалите продажи.";
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Cars WHERE Id = @id";
+        cmd.Parameters.Add(P("@id", id));
+        cmd.ExecuteNonQuery();
+        return null;
+    }
+
+    public List<SaleRow> SearchSales(string text)
+    {
+        var like = "%" + text.Trim() + "%";
+        return ReadSales("""
+            SELECT s.Id, s.CarId, c.Brand || ' ' || c.Model, s.CustomerName, s.SaleDate, s.Amount, s.Manager
+            FROM Sales s
+            JOIN Cars c ON c.Id = s.CarId
+            WHERE @q = ''
+               OR s.CustomerName LIKE @like OR s.Manager LIKE @like
+               OR c.Brand LIKE @like OR c.Model LIKE @like OR CAST(s.CarId AS TEXT) LIKE @like
+            ORDER BY s.Id
+            """, ("@q", text.Trim()), ("@like", like));
+    }
+
+    public List<SaleRow> SortSales(string field, bool descending)
+    {
+        var column = field switch
+        {
+            "Amount" => "s.Amount",
+            "SaleDate" => "s.SaleDate",
+            _ => "s.Id"
+        };
+        var direction = descending ? "DESC" : "ASC";
+        return ReadSales($"""
+            SELECT s.Id, s.CarId, c.Brand || ' ' || c.Model, s.CustomerName, s.SaleDate, s.Amount, s.Manager
+            FROM Sales s
+            JOIN Cars c ON c.Id = s.CarId
+            ORDER BY {column} {direction}, s.Id
+            """);
+    }
+
+    public string? SaveSales(IReadOnlyList<SaleRow> rows)
+    {
+        var parsed = new List<(int Id, int CarId, string Customer, string Date, decimal Amount, string Manager)>();
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            var line = i + 1;
+            if (!int.TryParse(row.CarId.Trim(), out var carId) || carId <= 0)
+                return $"Строка {line}: укажите Id автомобиля.";
+            if (string.IsNullOrWhiteSpace(row.CustomerName))
+                return $"Строка {line}: укажите покупателя.";
+            if (!TryParseDate(row.SaleDate, out var date))
+                return $"Строка {line}: дата в формате дд.мм.гггг.";
+            if (!TryParseMoney(row.Amount, out var amount) || amount < 0)
+                return $"Строка {line}: сумма должна быть неотрицательным числом.";
+            if (string.IsNullOrWhiteSpace(row.Manager))
+                return $"Строка {line}: укажите менеджера.";
+            parsed.Add((row.Id, carId, row.CustomerName.Trim(), date.ToString("yyyy-MM-dd"), amount, row.Manager.Trim()));
+        }
+
+        using var conn = Open();
+        using var tx = conn.BeginTransaction();
+        foreach (var sale in parsed)
+        {
+            using var exists = conn.CreateCommand();
+            exists.Transaction = tx;
+            exists.CommandText = "SELECT COUNT(*) FROM Cars WHERE Id = @id";
+            exists.Parameters.Add(P("@id", sale.CarId));
+            if (Convert.ToInt32(exists.ExecuteScalar()) == 0)
+                return $"Автомобиль с Id {sale.CarId} не найден.";
+
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            if (sale.Id == 0)
+            {
+                cmd.CommandText = """
+                    INSERT INTO Sales (CarId, CustomerName, SaleDate, Amount, Manager)
+                    VALUES (@car, @customer, @date, @amount, @manager)
+                    """;
+            }
+            else
+            {
+                cmd.CommandText = """
+                    UPDATE Sales
+                    SET CarId = @car, CustomerName = @customer, SaleDate = @date, Amount = @amount, Manager = @manager
+                    WHERE Id = @id
+                    """;
+                cmd.Parameters.Add(P("@id", sale.Id));
+            }
+
+            cmd.Parameters.Add(P("@car", sale.CarId));
+            cmd.Parameters.Add(P("@customer", sale.Customer));
+            cmd.Parameters.Add(P("@date", sale.Date));
+            cmd.Parameters.Add(P("@amount", sale.Amount));
+            cmd.Parameters.Add(P("@manager", sale.Manager));
+            cmd.ExecuteNonQuery();
+        }
+
+        tx.Commit();
+        return null;
+    }
+
+    public void DeleteSale(int id)
     {
         using var conn = Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM Orders WHERE Id = @id";
+        cmd.CommandText = "DELETE FROM Sales WHERE Id = @id";
         cmd.Parameters.Add(P("@id", id));
         cmd.ExecuteNonQuery();
     }
@@ -403,46 +523,50 @@ public sealed class AppDatabase
         return key switch
         {
             "all" => Query("""
-                SELECT Id, ItemName AS Позиция, ItemKind AS Тип, Quantity AS Количество,
-                       Price AS Цена, TableNumber AS Стол, OrderDate AS Дата, Status AS Статус
-                FROM Orders ORDER BY Id
+                SELECT Id, Brand AS Марка, Model AS Модель, Year AS Год, Color AS Цвет,
+                       Price AS Цена, Vin, Status AS Статус
+                FROM Cars ORDER BY Id
                 """),
-            "status" => Query("""
-                SELECT Id, ItemName AS Позиция, Quantity AS Количество, Price AS Цена, TableNumber AS Стол, Status AS Статус
-                FROM Orders WHERE Status = @p ORDER BY TableNumber
+            "brand" => Query("""
+                SELECT Id, Brand AS Марка, Model AS Модель, Year AS Год, Price AS Цена, Status AS Статус
+                FROM Cars WHERE Brand = @p ORDER BY Model
                 """, ("@p", parameter.Trim())),
-            "table" => Query("""
-                SELECT Id, ItemName AS Позиция, ItemKind AS Тип, Quantity AS Количество, Price AS Цена, Status AS Статус
-                FROM Orders WHERE TableNumber = @p ORDER BY Id
-                """, ("@p", ParseInt(parameter, "Номер стола должен быть числом."))),
-            "sum_above" => Query("""
-                SELECT Id, ItemName AS Позиция, Quantity AS Количество, Price AS Цена,
-                       Price * Quantity AS Сумма, Status AS Статус
-                FROM Orders WHERE Price * Quantity >= @p ORDER BY Сумма DESC
-                """, ("@p", ParseMoney(parameter, "Сумма должна быть числом."))),
-            "total" => Query("SELECT COUNT(*) AS Заказов, IFNULL(SUM(Price * Quantity), 0) AS СуммаБезСкидки FROM Orders"),
+            "status" => Query("""
+                SELECT Id, Brand AS Марка, Model AS Модель, Year AS Год, Color AS Цвет, Price AS Цена
+                FROM Cars WHERE Status = @p ORDER BY Price
+                """, ("@p", parameter.Trim())),
+            "price_to" => Query("""
+                SELECT Id, Brand AS Марка, Model AS Модель, Year AS Год, Price AS Цена, Status AS Статус
+                FROM Cars WHERE Price <= @p ORDER BY Price
+                """, ("@p", ParseMoney(parameter, "Цена должна быть числом."))),
+            "year_from" => Query("""
+                SELECT Id, Brand AS Марка, Model AS Модель, Year AS Год, Price AS Цена, Status AS Статус
+                FROM Cars WHERE Year >= @p ORDER BY Year DESC
+                """, ("@p", ParseInt(parameter, "Год должен быть числом."))),
             "by_status" => Query("""
-                SELECT Status AS Статус, COUNT(*) AS Количество
-                FROM Orders GROUP BY Status ORDER BY Количество DESC
+                SELECT Status AS Статус, COUNT(*) AS Количество, IFNULL(SUM(Price), 0) AS СуммаЦен
+                FROM Cars GROUP BY Status ORDER BY Количество DESC
                 """),
-            "top_dishes" => Query("""
-                SELECT ItemName AS Блюдо, SUM(Quantity) AS Порций
-                FROM Orders WHERE ItemKind = 'Блюдо'
-                GROUP BY ItemName ORDER BY Порций DESC, Блюдо
+            "sales" => Query("""
+                SELECT s.Id, c.Brand || ' ' || c.Model AS Автомобиль, s.CustomerName AS Покупатель,
+                       s.SaleDate AS Дата, s.Amount AS Сумма, s.Manager AS Менеджер
+                FROM Sales s JOIN Cars c ON c.Id = s.CarId ORDER BY s.Id
                 """),
-            "date" => Query("""
-                SELECT Id, ItemName AS Позиция, TableNumber AS Стол, Quantity AS Количество, Status AS Статус
-                FROM Orders WHERE OrderDate = @p ORDER BY TableNumber
+            "sale_date" => Query("""
+                SELECT s.Id, c.Brand || ' ' || c.Model AS Автомобиль, s.CustomerName AS Покупатель, s.Amount AS Сумма
+                FROM Sales s JOIN Cars c ON c.Id = s.CarId
+                WHERE s.SaleDate = @p ORDER BY s.Amount DESC
                 """, ("@p", ParseDate(parameter).ToString("yyyy-MM-dd"))),
-            "drinks" => Query("""
-                SELECT Id, ItemName AS Напиток, Quantity AS Количество, Price AS Цена, TableNumber AS Стол, Status AS Статус
-                FROM Orders WHERE ItemKind = 'Напиток' ORDER BY ItemName
+            "expensive" => Query("""
+                SELECT Brand AS Марка, Model AS Модель, Year AS Год, Price AS Цена, Status AS Статус
+                FROM Cars ORDER BY Price DESC LIMIT 5
                 """),
-            "dishes" => Query("""
-                SELECT Id, ItemName AS Блюдо, Quantity AS Количество, Price AS Цена, TableNumber AS Стол, Status AS Статус
-                FROM Orders WHERE ItemKind = 'Блюдо' ORDER BY ItemName
+            "sold" => Query("""
+                SELECT c.Brand AS Марка, c.Model AS Модель, s.CustomerName AS Покупатель,
+                       s.SaleDate AS Дата, s.Amount AS Сумма, s.Manager AS Менеджер
+                FROM Sales s JOIN Cars c ON c.Id = s.CarId
+                ORDER BY s.SaleDate DESC
                 """),
-            "describe" => DescribeOrders(),
             _ => throw new ArgumentException("Неизвестный запрос.")
         };
     }
@@ -468,28 +592,6 @@ public sealed class AppDatabase
         if (DateTime.TryParseExact(source, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out value))
             return true;
         return DateTime.TryParse(source, Ru, DateTimeStyles.None, out value);
-    }
-
-    private TableData DescribeOrders()
-    {
-        var columns = new[] { "Позиция", "Тип", "Описание", "Сумма без скидки", "Сумма с правилом типа" };
-        var rows = new List<string[]>();
-        foreach (var order in SearchOrders(""))
-        {
-            if (!TryParseMoney(order.Price, out var price) || !int.TryParse(order.Quantity, out var quantity))
-                continue;
-            MenuItem item = MenuItem.Create(order.ItemKind, order.ItemName, price);
-            var plain = decimal.Round(price * quantity, 2, MidpointRounding.AwayFromZero);
-            rows.Add(
-            [
-                order.ItemName,
-                item.Kind,
-                item.Describe(quantity),
-                plain.ToString("N2", Ru),
-                item.LineTotal(quantity).ToString("N2", Ru)
-            ]);
-        }
-        return new TableData(columns, rows);
     }
 
     private static decimal ParseMoney(string text, string error)
@@ -571,7 +673,7 @@ public sealed class AppDatabase
         return Convert.ToInt32(cmd.ExecuteScalar());
     }
 
-    private List<OrderRow> ReadOrders(string sql, params (string Name, object Value)[] parameters)
+    private List<CarRow> ReadCars(string sql, params (string Name, object Value)[] parameters)
     {
         using var conn = Open();
         using var cmd = conn.CreateCommand();
@@ -579,21 +681,46 @@ public sealed class AppDatabase
         foreach (var (name, value) in parameters)
             cmd.Parameters.Add(P(name, value));
         using var reader = cmd.ExecuteReader();
-        var list = new List<OrderRow>();
+        var list = new List<CarRow>();
         while (reader.Read())
         {
-            var storedDate = reader.GetString(6);
-            var shownDate = TryParseDate(storedDate, out var date) ? date.ToString("dd.MM.yyyy") : storedDate;
-            list.Add(new OrderRow
+            list.Add(new CarRow
             {
                 Id = reader.GetInt32(0),
-                ItemName = reader.GetString(1),
-                ItemKind = reader.GetString(2),
-                Quantity = reader.GetInt32(3).ToString(CultureInfo.InvariantCulture),
-                Price = Convert.ToDecimal(reader.GetValue(4), CultureInfo.InvariantCulture).ToString("0.##", Ru),
-                TableNumber = reader.GetInt32(5).ToString(CultureInfo.InvariantCulture),
-                OrderDate = shownDate,
+                Brand = reader.GetString(1),
+                Model = reader.GetString(2),
+                Year = reader.GetInt32(3).ToString(CultureInfo.InvariantCulture),
+                Color = reader.GetString(4),
+                Price = Convert.ToDecimal(reader.GetValue(5), CultureInfo.InvariantCulture).ToString("0.##", Ru),
+                Vin = reader.GetString(6),
                 Status = reader.GetString(7)
+            });
+        }
+        return list;
+    }
+
+    private List<SaleRow> ReadSales(string sql, params (string Name, object Value)[] parameters)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var (name, value) in parameters)
+            cmd.Parameters.Add(P(name, value));
+        using var reader = cmd.ExecuteReader();
+        var list = new List<SaleRow>();
+        while (reader.Read())
+        {
+            var storedDate = reader.GetString(4);
+            var shownDate = TryParseDate(storedDate, out var date) ? date.ToString("dd.MM.yyyy") : storedDate;
+            list.Add(new SaleRow
+            {
+                Id = reader.GetInt32(0),
+                CarId = reader.GetInt32(1).ToString(CultureInfo.InvariantCulture),
+                CarLabel = reader.GetString(2),
+                CustomerName = reader.GetString(3),
+                SaleDate = shownDate,
+                Amount = Convert.ToDecimal(reader.GetValue(5), CultureInfo.InvariantCulture).ToString("0.##", Ru),
+                Manager = reader.GetString(6)
             });
         }
         return list;
@@ -677,15 +804,23 @@ public sealed class AppDatabase
                 RoleId INTEGER NOT NULL REFERENCES Roles(Id),
                 FailedAttempts INTEGER NOT NULL DEFAULT 0
             );
-            CREATE TABLE IF NOT EXISTS Orders (
+            CREATE TABLE IF NOT EXISTS Cars (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ItemName TEXT NOT NULL,
-                ItemKind TEXT NOT NULL,
-                Quantity INTEGER NOT NULL,
+                Brand TEXT NOT NULL,
+                Model TEXT NOT NULL,
+                Year INTEGER NOT NULL,
+                Color TEXT NOT NULL,
                 Price REAL NOT NULL,
-                TableNumber INTEGER NOT NULL,
-                OrderDate TEXT NOT NULL,
+                Vin TEXT NOT NULL UNIQUE,
                 Status TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS Sales (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                CarId INTEGER NOT NULL REFERENCES Cars(Id),
+                CustomerName TEXT NOT NULL,
+                SaleDate TEXT NOT NULL,
+                Amount REAL NOT NULL,
+                Manager TEXT NOT NULL
             );
             """;
         cmd.ExecuteNonQuery();
@@ -717,36 +852,55 @@ public sealed class AppDatabase
         cmd.ExecuteNonQuery();
     }
 
-    private static void InsertOrders(SqliteConnection conn)
+    private static void InsertCarsAndSales(SqliteConnection conn)
     {
-        Add(conn, "Борщ", "Блюдо", 2, 350, 1, "2026-11-20", "Подан");
-        Add(conn, "Цезарь", "Блюдо", 1, 490, 1, "2026-11-20", "Подан");
-        Add(conn, "Стейк", "Блюдо", 1, 1200, 3, "2026-11-20", "Готовится");
-        Add(conn, "Паста", "Блюдо", 2, 540, 4, "2026-11-19", "Оплачен");
-        Add(conn, "Тирамису", "Блюдо", 1, 320, 4, "2026-11-19", "Оплачен");
-        Add(conn, "Чай", "Напиток", 2, 120, 1, "2026-11-20", "Подан");
-        Add(conn, "Лимонад", "Напиток", 3, 180, 2, "2026-11-20", "Новый");
-        Add(conn, "Кофе", "Напиток", 1, 160, 5, "2026-11-18", "Оплачен");
-        Add(conn, "Морс", "Напиток", 4, 150, 2, "2026-11-20", "Готовится");
-        Add(conn, "Суп дня", "Блюдо", 1, 280, 6, "2026-11-17", "Оплачен");
-        Add(conn, "Пицца", "Блюдо", 1, 690, 7, "2026-11-20", "Новый");
-        Add(conn, "Сок", "Напиток", 2, 140, 3, "2026-11-20", "Готовится");
+        InsertCar(conn, "Lada", "Granta", 2023, "Белый", 950000, "XTA219140N0123401", "В наличии");
+        InsertCar(conn, "Kia", "Rio", 2021, "Серый", 1450000, "Z94CB41BBMR234502", "В наличии");
+        InsertCar(conn, "Hyundai", "Solaris", 2022, "Синий", 1600000, "Z94K241CBNR234503", "В наличии");
+        var camry = InsertCar(conn, "Toyota", "Camry", 2020, "Чёрный", 2850000, "XW7BF4FK70S234504", "Продан");
+        InsertCar(conn, "Volkswagen", "Polo", 2019, "Серебристый", 1200000, "XW8ZZZ61ZKG234505", "В наличии");
+        InsertCar(conn, "Kia", "Sportage", 2024, "Красный", 3200000, "XWEPB81AHM1234506", "Бронь");
+        var solaris = InsertCar(conn, "Hyundai", "Creta", 2023, "Белый", 2100000, "Z94G2811CNR234507", "Продан");
+        InsertCar(conn, "Lada", "Vesta", 2022, "Синий", 1350000, "XTA219170N0123408", "В наличии");
+        InsertCar(conn, "Skoda", "Rapid", 2018, "Серый", 980000, "XW8ZZZ5NZJG234509", "В наличии");
+        InsertCar(conn, "Toyota", "RAV4", 2024, "Чёрный", 3650000, "XW7R33FV70S234510", "Бронь");
+
+        InsertSale(conn, camry, "Иванов Пётр", "2026-11-20", 2750000, "Смирнова");
+        InsertSale(conn, solaris, "Козлова Анна", "2026-11-18", 2050000, "Орлов");
     }
 
-    private static void Add(SqliteConnection conn, string name, string kind, int qty, decimal price, int table, string date, string status)
+    private static long InsertCar(SqliteConnection conn, string brand, string model, int year, string color, decimal price, string vin, string status)
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO Orders (ItemName, ItemKind, Quantity, Price, TableNumber, OrderDate, Status)
-            VALUES (@name, @kind, @qty, @price, @table, @date, @status)
+            INSERT INTO Cars (Brand, Model, Year, Color, Price, Vin, Status)
+            VALUES (@brand, @model, @year, @color, @price, @vin, @status)
             """;
-        cmd.Parameters.Add(P("@name", name));
-        cmd.Parameters.Add(P("@kind", kind));
-        cmd.Parameters.Add(P("@qty", qty));
+        cmd.Parameters.Add(P("@brand", brand));
+        cmd.Parameters.Add(P("@model", model));
+        cmd.Parameters.Add(P("@year", year));
+        cmd.Parameters.Add(P("@color", color));
         cmd.Parameters.Add(P("@price", price));
-        cmd.Parameters.Add(P("@table", table));
-        cmd.Parameters.Add(P("@date", date));
+        cmd.Parameters.Add(P("@vin", vin));
         cmd.Parameters.Add(P("@status", status));
+        cmd.ExecuteNonQuery();
+        using var id = conn.CreateCommand();
+        id.CommandText = "SELECT last_insert_rowid()";
+        return (long)id.ExecuteScalar()!;
+    }
+
+    private static void InsertSale(SqliteConnection conn, long carId, string customer, string date, decimal amount, string manager)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO Sales (CarId, CustomerName, SaleDate, Amount, Manager)
+            VALUES (@car, @customer, @date, @amount, @manager)
+            """;
+        cmd.Parameters.Add(P("@car", carId));
+        cmd.Parameters.Add(P("@customer", customer));
+        cmd.Parameters.Add(P("@date", date));
+        cmd.Parameters.Add(P("@amount", amount));
+        cmd.Parameters.Add(P("@manager", manager));
         cmd.ExecuteNonQuery();
     }
 

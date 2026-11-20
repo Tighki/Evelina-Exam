@@ -7,17 +7,14 @@ public static class SelfTest
 {
     public static int Run()
     {
-        var path = Path.Combine(Path.GetTempPath(), "restaurant-test-" + Guid.NewGuid().ToString("N") + ".db");
+        var path = Path.Combine(Path.GetTempPath(), "dealership-test-" + Guid.NewGuid().ToString("N") + ".db");
         var fails = 0;
         try
         {
-            MenuItem drink = new Drink("Лимонад", 180);
-            MenuItem dish = new Dish("Борщ", 350);
-            Check(drink.Kind == "Напиток" && drink.LineTotal(3) == 486m, "скидка напитка от трёх порций", ref fails);
-            Check(dish.Kind == "Блюдо" && dish.LineTotal(3) == 1050m, "блюдо без скидки", ref fails);
-            Check(drink.LineTotal(2) == 360m, "напиток из двух порций без скидки", ref fails);
-
             var db = new AppDatabase(path);
+            var tables = db.CheckConnection();
+            Check(tables.Contains("Cars") && tables.Contains("Users") && tables.Contains("Roles") && tables.Contains("Sales"),
+                "подключение и четыре таблицы", ref fails);
             Check(db.FindUser("admin")?.Role == "Администратор", "демо-администратор", ref fails);
             Check(db.FindUser("moderator")?.Role == "Модератор", "демо-модератор", ref fails);
             Check(db.FindUser("user")?.Role == "Пользователь", "демо-пользователь", ref fails);
@@ -43,9 +40,15 @@ public static class SelfTest
             Check(db.Authorize("newbie", "secret", false).Blocked, "три неверных пазла блокируют", ref fails);
             db.UpdateUser(newbie.Id, "newbie", null, "Пользователь", admin.Id);
 
-            Check(db.SearchOrders("Борщ").Any(order => order.ItemName == "Борщ"), "поиск заказа", ref fails);
-            var byDate = db.SortOrders("OrderDate", false);
-            Check(byDate.Count > 1 && string.Compare(byDate[0].OrderDate, byDate[^1].OrderDate, StringComparison.Ordinal) <= 0, "сортировка по дате", ref fails);
+            Check(db.SearchCars("Kia").Any(car => car.Brand == "Kia"), "поиск автомобиля", ref fails);
+            var byPrice = db.SortCars("Price", false);
+            AppDatabase.TryParseMoney(byPrice[0].Price, out var firstPrice);
+            AppDatabase.TryParseMoney(byPrice[^1].Price, out var lastPrice);
+            Check(byPrice.Count > 1 && firstPrice <= lastPrice, "сортировка по цене", ref fails);
+            var byDate = db.SortSales("SaleDate", false);
+            AppDatabase.TryParseDate(byDate[0].SaleDate, out var firstDate);
+            AppDatabase.TryParseDate(byDate[^1].SaleDate, out var lastDate);
+            Check(byDate.Count > 1 && firstDate <= lastDate, "сортировка продаж по дате", ref fails);
 
             foreach (var query in db.Queries)
             {
@@ -53,35 +56,49 @@ public static class SelfTest
                 Check(table.Columns.Count > 0 && table.Rows.Count > 0, "запрос " + query.Title, ref fails);
             }
 
-            var described = db.RunQuery("describe", "");
-            Check(described.Rows.Any(row => row[1] == "Напиток" && row[3] != row[4]), "в запросе видна скидка напитка", ref fails);
-            Check(described.Rows.Any(row => row[1] == "Блюдо" && row[3] == row[4]), "блюдо в запросе без скидки", ref fails);
-
-            var saved = db.SaveOrders(
+            var saved = db.SaveCars(
             [
-                new OrderRow
+                new CarRow
                 {
-                    ItemName = "Сырники",
-                    ItemKind = "Блюдо",
-                    Quantity = "2",
-                    Price = "250",
-                    TableNumber = "8",
-                    OrderDate = "21.11.2026",
-                    Status = "Новый"
+                    Brand = "Geely",
+                    Model = "Coolray",
+                    Year = "2024",
+                    Color = "Белый",
+                    Price = "1850000",
+                    Vin = "LB3Z63D90RX123451",
+                    Status = "В наличии"
                 }
             ]);
-            Check(saved == null && db.SearchOrders("Сырники").Count == 1, "добавление заказа", ref fails);
-            var syrniki = db.SearchOrders("Сырники")[0];
-            syrniki.Quantity = "3";
-            Check(db.SaveOrders([syrniki]) == null, "изменение заказа", ref fails);
-            Check(db.SearchOrders("Сырники")[0].Quantity == "3", "количество сохранилось", ref fails);
-            Check(db.SaveOrders(
+            Check(saved == null && db.SearchCars("Geely").Count == 1, "добавление автомобиля", ref fails);
+            var geely = db.SearchCars("Geely")[0];
+            geely.Price = "1900000";
+            Check(db.SaveCars([geely]) == null, "изменение автомобиля", ref fails);
+            AppDatabase.TryParseMoney(db.SearchCars("Geely")[0].Price, out var savedPrice);
+            Check(Math.Abs(savedPrice - 1900000m) < 1, "цена сохранилась", ref fails);
+            Check(db.SaveCars(
             [
-                new OrderRow { ItemName = "Чай", ItemKind = "Суп", Quantity = "1", Price = "10", TableNumber = "1", OrderDate = "21.11.2026", Status = "Новый" }
-            ]) != null, "неверный тип позиции", ref fails);
+                new CarRow { Brand = "Geely", Model = "Atlas", Year = "2024", Color = "Синий", Price = "10", Vin = "LB3Z63D90RX123451", Status = "В наличии" }
+            ]) != null, "повтор VIN", ref fails);
 
-            db.DeleteOrder(syrniki.Id);
-            Check(db.SearchOrders("Сырники").Count == 0, "удаление заказа", ref fails);
+            var sold = db.SearchCars("Camry")[0];
+            Check(db.DeleteCar(sold.Id) != null, "нельзя удалить автомобиль с продажами", ref fails);
+            Check(db.DeleteCar(geely.Id) == null && db.SearchCars("Geely").Count == 0, "удаление автомобиля", ref fails);
+
+            var sale = new SaleRow
+            {
+                CarId = db.SearchCars("Granta")[0].Id.ToString(),
+                CustomerName = "Новиков",
+                SaleDate = "21.11.2026",
+                Amount = "900000",
+                Manager = "Орлов"
+            };
+            Check(db.SaveSales([sale]) == null, "добавление продажи", ref fails);
+            var stored = db.SearchSales("Новиков")[0];
+            stored.Amount = "910000";
+            Check(db.SaveSales([stored]) == null, "изменение продажи", ref fails);
+            db.DeleteSale(stored.Id);
+            Check(db.SearchSales("Новиков").Count == 0, "удаление продажи", ref fails);
+
             Check(db.DeleteUser(newbie.Id, admin.Id) == null && db.FindUser("newbie") == null, "удаление пользователя", ref fails);
             Check(db.DeleteUser(admin.Id, admin.Id) != null, "нельзя удалить себя", ref fails);
         }

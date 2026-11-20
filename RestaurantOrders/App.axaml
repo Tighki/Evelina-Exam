@@ -9,7 +9,7 @@
       <Setter Property="FontFamily" Value="Inter, sans-serif" />
     </Style>
     <Style Selector="Button.accent">
-      <Setter Property="Background" Value="#6E2436" />
+      <Setter Property="Background" Value="#1B3A4B" />
       <Setter Property="Foreground" Value="White" />
       <Setter Property="Padding" Value="14,8" />
       <Setter Property="CornerRadius" Value="6" />
@@ -23,8 +23,8 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Button.ghost">
-      <Setter Property="Background" Value="#F0E4D8" />
-      <Setter Property="Foreground" Value="#6E2436" />
+      <Setter Property="Background" Value="#E4EEF2" />
+      <Setter Property="Foreground" Value="#1B3A4B" />
       <Setter Property="Padding" Value="14,8" />
       <Setter Property="CornerRadius" Value="6" />
     </Style>
@@ -38,7 +38,7 @@
     </Style>
     <Style Selector="Button.link">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="#6E2436" />
+      <Setter Property="Foreground" Value="#1B3A4B" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>

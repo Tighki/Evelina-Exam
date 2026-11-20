@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data;
 using Avalonia.Interactivity;
 using RestaurantOrders.Controls;
@@ -8,13 +10,15 @@ using RestaurantOrders.Models;
 
 namespace RestaurantOrders.Views;
 
-// Таблица ниже показывает и редактирует заказы: строки, столбцы, правка ячеек и запись в базу.
+// Поиск и сортировка идут запросом в базу. Таблица на экране показывает Cars или Sales и записывает правки обратно.
 public partial class ModeratorWindow : Window
 {
     private readonly AppDatabase _db = new();
-    private readonly ObservableCollection<OrderRow> _orders = new();
-    private Func<List<OrderRow>> _load;
+    private readonly ObservableCollection<CarRow> _cars = new();
+    private readonly ObservableCollection<SaleRow> _sales = new();
+    private bool _showingCars = true;
     private bool _dirty;
+    private bool _ready;
 
     public ModeratorWindow() : this(new UserAccount(0, "moderator", "moderator", "Модератор", 0)) { }
 
@@ -25,9 +29,30 @@ public partial class ModeratorWindow : Window
 
         InitializeComponent();
         UserLine.Text = "Модератор: " + actor.Login + ". После правки ячеек нажмите «Сохранить».";
-        _load = () => _db.SearchOrders("");
-        SetupColumns();
-        Show(_load());
+        TableBox.ItemsSource = new[] { "Cars — автомобили", "Sales — продажи" };
+        TableBox.SelectedIndex = 0;
+        _ready = true;
+        ShowCars(() => _db.SearchCars(""));
+    }
+
+    private async void OnTableChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_ready)
+            return;
+        if (!await ConfirmDiscard())
+        {
+            _ready = false;
+            TableBox.SelectedIndex = _showingCars ? 0 : 1;
+            _ready = true;
+            return;
+        }
+
+        SearchBox.Text = "";
+        _dirty = false;
+        if (TableBox.SelectedIndex == 0)
+            ShowCars(() => _db.SearchCars(""));
+        else
+            ShowSales(() => _db.SearchSales(""));
     }
 
     private async void OnSearch(object? sender, RoutedEventArgs e)
@@ -35,9 +60,11 @@ public partial class ModeratorWindow : Window
         if (!await ConfirmDiscard())
             return;
         var text = SearchBox.Text ?? "";
-        _load = () => _db.SearchOrders(text);
         _dirty = false;
-        Show(_load());
+        if (_showingCars)
+            ShowCars(() => _db.SearchCars(text));
+        else
+            ShowSales(() => _db.SearchSales(text));
     }
 
     private async void OnReset(object? sender, RoutedEventArgs e)
@@ -45,43 +72,58 @@ public partial class ModeratorWindow : Window
         if (!await ConfirmDiscard())
             return;
         SearchBox.Text = "";
-        _load = () => _db.SearchOrders("");
         _dirty = false;
-        Show(_load());
+        if (_showingCars)
+            ShowCars(() => _db.SearchCars(""));
+        else
+            ShowSales(() => _db.SearchSales(""));
     }
 
-    private async void OnSortSumAsc(object? sender, RoutedEventArgs e) => await Sort("Amount", false);
-    private async void OnSortSumDesc(object? sender, RoutedEventArgs e) => await Sort("Amount", true);
-    private async void OnSortDateAsc(object? sender, RoutedEventArgs e) => await Sort("OrderDate", false);
-    private async void OnSortDateDesc(object? sender, RoutedEventArgs e) => await Sort("OrderDate", true);
+    private async void OnSortAsc(object? sender, RoutedEventArgs e) => await Sort(false, primary: true);
+    private async void OnSortDesc(object? sender, RoutedEventArgs e) => await Sort(true, primary: true);
+    private async void OnSortAltAsc(object? sender, RoutedEventArgs e) => await Sort(false, primary: false);
+    private async void OnSortAltDesc(object? sender, RoutedEventArgs e) => await Sort(true, primary: false);
 
-    private async Task Sort(string field, bool descending)
+    private async Task Sort(bool descending, bool primary)
     {
         if (!await ConfirmDiscard())
             return;
-        _load = () => _db.SortOrders(field, descending);
         _dirty = false;
-        Show(_load());
+        if (_showingCars)
+        {
+            var field = primary ? "Price" : "Year";
+            ShowCars(() => _db.SortCars(field, descending));
+        }
+        else
+        {
+            var field = primary ? "Amount" : "SaleDate";
+            ShowSales(() => _db.SortSales(field, descending));
+        }
     }
 
     private void OnAdd(object? sender, RoutedEventArgs e)
     {
-        _orders.Add(new OrderRow
+        if (_showingCars)
         {
-            ItemKind = "Блюдо",
-            Quantity = "1",
-            Price = "0",
-            TableNumber = "1",
-            OrderDate = DateTime.Today.ToString("dd.MM.yyyy"),
-            Status = "Новый"
-        });
+            _cars.Add(new CarRow { Year = DateTime.Today.Year.ToString(), Price = "0", Status = "В наличии" });
+        }
+        else
+        {
+            _sales.Add(new SaleRow
+            {
+                CarId = "1",
+                SaleDate = DateTime.Today.ToString("dd.MM.yyyy"),
+                Amount = "0"
+            });
+        }
+
         _dirty = true;
         StatusLine.Text = "Новая строка добавлена. Заполните её и нажмите «Сохранить».";
     }
 
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
-        var error = _db.SaveOrders(_orders.ToList());
+        var error = _showingCars ? _db.SaveCars(_cars.ToList()) : _db.SaveSales(_sales.ToList());
         if (error != null)
         {
             await Prompts.Alert(this, error);
@@ -89,55 +131,122 @@ public partial class ModeratorWindow : Window
         }
 
         _dirty = false;
-        Show(_load());
-        StatusLine.Text = "Заказы сохранены в базе.";
+        if (_showingCars)
+            ShowCars(() => _db.SearchCars(SearchBox.Text ?? ""));
+        else
+            ShowSales(() => _db.SearchSales(SearchBox.Text ?? ""));
+        StatusLine.Text = "Данные сохранены в базе. " + StatusLine.Text;
     }
 
     private async void OnDelete(object? sender, RoutedEventArgs e)
     {
-        if (RowsGrid.SelectedItem is not OrderRow order)
+        if (_showingCars)
+        {
+            if (RowsGrid.SelectedItem is not CarRow car)
+            {
+                await Prompts.Alert(this, "Выберите строку.");
+                return;
+            }
+
+            if (!await Prompts.Confirm(this, "Удалить выбранный автомобиль?"))
+                return;
+            if (car.Id != 0)
+            {
+                var error = _db.DeleteCar(car.Id);
+                if (error != null)
+                {
+                    await Prompts.Alert(this, error);
+                    return;
+                }
+            }
+
+            _cars.Remove(car);
+            StatusLine.Text = "Автомобиль удалён.";
+            return;
+        }
+
+        if (RowsGrid.SelectedItem is not SaleRow sale)
         {
             await Prompts.Alert(this, "Выберите строку.");
             return;
         }
 
-        if (!await Prompts.Confirm(this, "Удалить выбранный заказ?"))
+        if (!await Prompts.Confirm(this, "Удалить выбранную продажу?"))
             return;
-
-        if (order.Id != 0)
-            _db.DeleteOrder(order.Id);
-        _orders.Remove(order);
-        StatusLine.Text = "Заказ удалён.";
+        if (sale.Id != 0)
+            _db.DeleteSale(sale.Id);
+        _sales.Remove(sale);
+        StatusLine.Text = "Продажа удалена.";
     }
 
     private void OnCellEdited(object? sender, DataGridCellEditEndedEventArgs e) => _dirty = true;
 
     private void OnLogout(object? sender, RoutedEventArgs e)
     {
-        new LoginWindow().Show();
+        var login = new LoginWindow();
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.MainWindow = login;
+        login.Show();
         Close();
     }
 
-    private void Show(List<OrderRow> rows)
+    private void ShowCars(Func<List<CarRow>> load)
     {
-        _orders.Clear();
-        foreach (var row in rows)
-            _orders.Add(row);
-        RowsGrid.ItemsSource = _orders;
-        StatusLine.Text = $"Заказы, строк: {_orders.Count}. База: {_db.DisplayPath}";
+        _showingCars = true;
+        SortAscButton.Content = "Цена ↑";
+        SortDescButton.Content = "Цена ↓";
+        SortAltAscButton.Content = "Год ↑";
+        SortAltDescButton.Content = "Год ↓";
+        SearchBox.Watermark = "Марка, VIN, статус";
+        HintText.Text = "Таблица Cars. Статус: В наличии, Бронь, Продан. Таблицы Users и Roles здесь не меняются.";
+        SetupCarColumns();
+        _cars.Clear();
+        foreach (var row in load())
+            _cars.Add(row);
+        RowsGrid.ItemsSource = _cars;
+        StatusLine.Text = $"Автомобили, строк: {_cars.Count}. База: {_db.DisplayPath}";
     }
 
-    private void SetupColumns()
+    private void ShowSales(Func<List<SaleRow>> load)
+    {
+        _showingCars = false;
+        SortAscButton.Content = "Сумма ↑";
+        SortDescButton.Content = "Сумма ↓";
+        SortAltAscButton.Content = "Дата ↑";
+        SortAltDescButton.Content = "Дата ↓";
+        SearchBox.Watermark = "Покупатель, менеджер, марка";
+        HintText.Text = "Таблица Sales — четвёртая таблица базы, продажи. В столбце «Id авто» укажите Id из Cars. Пользователей здесь менять нельзя.";
+        SetupSaleColumns();
+        _sales.Clear();
+        foreach (var row in load())
+            _sales.Add(row);
+        RowsGrid.ItemsSource = _sales;
+        StatusLine.Text = $"Продажи, строк: {_sales.Count}. База: {_db.DisplayPath}";
+    }
+
+    private void SetupCarColumns()
     {
         RowsGrid.Columns.Clear();
-        RowsGrid.Columns.Add(Column("Id", nameof(OrderRow.Id), true, 50));
-        RowsGrid.Columns.Add(Column("Позиция", nameof(OrderRow.ItemName), false, 160));
-        RowsGrid.Columns.Add(Column("Тип", nameof(OrderRow.ItemKind), false, 110));
-        RowsGrid.Columns.Add(Column("Кол-во", nameof(OrderRow.Quantity), false, 80));
-        RowsGrid.Columns.Add(Column("Цена", nameof(OrderRow.Price), false, 100));
-        RowsGrid.Columns.Add(Column("Стол", nameof(OrderRow.TableNumber), false, 70));
-        RowsGrid.Columns.Add(Column("Дата", nameof(OrderRow.OrderDate), false, 110));
-        RowsGrid.Columns.Add(Column("Статус", nameof(OrderRow.Status), false, 130));
+        RowsGrid.Columns.Add(Column("Id", nameof(CarRow.Id), true, 50));
+        RowsGrid.Columns.Add(Column("Марка", nameof(CarRow.Brand), false, 120));
+        RowsGrid.Columns.Add(Column("Модель", nameof(CarRow.Model), false, 120));
+        RowsGrid.Columns.Add(Column("Год", nameof(CarRow.Year), false, 70));
+        RowsGrid.Columns.Add(Column("Цвет", nameof(CarRow.Color), false, 120));
+        RowsGrid.Columns.Add(Column("Цена", nameof(CarRow.Price), false, 120));
+        RowsGrid.Columns.Add(Column("VIN", nameof(CarRow.Vin), false, 180));
+        RowsGrid.Columns.Add(Column("Статус", nameof(CarRow.Status), false, 120));
+    }
+
+    private void SetupSaleColumns()
+    {
+        RowsGrid.Columns.Clear();
+        RowsGrid.Columns.Add(Column("Id", nameof(SaleRow.Id), true, 50));
+        RowsGrid.Columns.Add(Column("Id авто", nameof(SaleRow.CarId), false, 80));
+        RowsGrid.Columns.Add(Column("Автомобиль", nameof(SaleRow.CarLabel), true, 180));
+        RowsGrid.Columns.Add(Column("Покупатель", nameof(SaleRow.CustomerName), false, 180));
+        RowsGrid.Columns.Add(Column("Дата", nameof(SaleRow.SaleDate), false, 120));
+        RowsGrid.Columns.Add(Column("Сумма", nameof(SaleRow.Amount), false, 130));
+        RowsGrid.Columns.Add(Column("Менеджер", nameof(SaleRow.Manager), false, 140));
     }
 
     private static DataGridTextColumn Column(string header, string path, bool readOnly, double width) => new()

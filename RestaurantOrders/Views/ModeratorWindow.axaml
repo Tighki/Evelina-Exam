@@ -2,34 +2,35 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
         x:Class="RestaurantOrders.Views.ModeratorWindow"
-        Title="Учёт заказов — модератор"
-        Width="1180" Height="740"
+        Title="Учёт автомобилей — модератор"
+        Width="1240" Height="740"
         WindowStartupLocation="CenterScreen"
-        Background="#FBF6F1">
+        Background="#F4F7F8">
   <DockPanel>
-    <Border DockPanel.Dock="Top" Background="#6E2436" Padding="20,14">
+    <Border DockPanel.Dock="Top" Background="#1B3A4B" Padding="20,14">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel>
-          <TextBlock Text="Учёт заказов ресторана" FontSize="22" FontWeight="Bold" Foreground="White" />
+          <TextBlock Text="Учёт автомобилей автосалона" FontSize="22" FontWeight="Bold" Foreground="White" />
           <TextBlock x:Name="UserLine" Foreground="#E8A838" FontSize="14" />
         </StackPanel>
         <Button Grid.Column="1" Classes="light" Content="Выйти" Click="OnLogout" />
       </Grid>
     </Border>
-    <Border DockPanel.Dock="Bottom" Background="#F0E4D8" Padding="16,8">
-      <TextBlock x:Name="StatusLine" FontSize="13" Foreground="#6E2436" TextWrapping="Wrap" />
+    <Border DockPanel.Dock="Bottom" Background="#E4EEF2" Padding="16,8">
+      <TextBlock x:Name="StatusLine" FontSize="13" Foreground="#1B3A4B" TextWrapping="Wrap" />
     </Border>
     <Grid Margin="16" RowDefinitions="Auto,Auto,*">
-      <TextBlock Text="Таблица Orders. Тип: Блюдо или Напиток. Статус: Новый, Готовится, Подан, Оплачен. Пользователей здесь менять нельзя."
-                 FontSize="16" FontWeight="SemiBold" Foreground="#6E2436" TextWrapping="Wrap" />
+      <TextBlock x:Name="HintText" FontSize="16" FontWeight="SemiBold" Foreground="#1B3A4B" TextWrapping="Wrap" />
       <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12">
-        <TextBox x:Name="SearchBox" Width="200" Watermark="Блюдо, статус, стол" />
+        <TextBlock Text="Таблица" VerticalAlignment="Center" />
+        <ComboBox x:Name="TableBox" Width="160" SelectionChanged="OnTableChanged" />
+        <TextBox x:Name="SearchBox" Width="200" Watermark="Марка, VIN, статус" />
         <Button Classes="ghost" Content="Найти" Click="OnSearch" />
         <Button Classes="ghost" Content="Сбросить" Click="OnReset" />
-        <Button Classes="ghost" Content="Сумма ↑" Click="OnSortSumAsc" />
-        <Button Classes="ghost" Content="Сумма ↓" Click="OnSortSumDesc" />
-        <Button Classes="ghost" Content="Дата ↑" Click="OnSortDateAsc" />
-        <Button Classes="ghost" Content="Дата ↓" Click="OnSortDateDesc" />
+        <Button x:Name="SortAscButton" Classes="ghost" Content="Цена ↑" Click="OnSortAsc" />
+        <Button x:Name="SortDescButton" Classes="ghost" Content="Цена ↓" Click="OnSortDesc" />
+        <Button x:Name="SortAltAscButton" Classes="ghost" Content="Год ↑" Click="OnSortAltAsc" />
+        <Button x:Name="SortAltDescButton" Classes="ghost" Content="Год ↓" Click="OnSortAltDesc" />
         <Button Classes="gold" Content="Добавить" Click="OnAdd" />
         <Button Classes="accent" Content="Сохранить" Click="OnSave" />
         <Button Classes="ghost" Content="Удалить" Click="OnDelete" />

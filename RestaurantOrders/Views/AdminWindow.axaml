@@ -2,25 +2,25 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
         x:Class="RestaurantOrders.Views.AdminWindow"
-        Title="Учёт заказов — администратор"
+        Title="Учёт автомобилей — администратор"
         Width="1100" Height="720"
         WindowStartupLocation="CenterScreen"
-        Background="#FBF6F1">
+        Background="#F4F7F8">
   <DockPanel>
-    <Border DockPanel.Dock="Top" Background="#6E2436" Padding="20,14">
+    <Border DockPanel.Dock="Top" Background="#1B3A4B" Padding="20,14">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel>
-          <TextBlock Text="Учёт заказов ресторана" FontSize="22" FontWeight="Bold" Foreground="White" />
+          <TextBlock Text="Учёт автомобилей автосалона" FontSize="22" FontWeight="Bold" Foreground="White" />
           <TextBlock x:Name="UserLine" Foreground="#E8A838" FontSize="14" />
         </StackPanel>
         <Button Grid.Column="1" Classes="light" Content="Выйти" Click="OnLogout" />
       </Grid>
     </Border>
-    <Border DockPanel.Dock="Bottom" Background="#F0E4D8" Padding="16,8">
-      <TextBlock x:Name="StatusLine" FontSize="13" Foreground="#6E2436" TextWrapping="Wrap" />
+    <Border DockPanel.Dock="Bottom" Background="#E4EEF2" Padding="16,8">
+      <TextBlock x:Name="StatusLine" FontSize="13" Foreground="#1B3A4B" TextWrapping="Wrap" />
     </Border>
     <Grid Margin="16" RowDefinitions="Auto,Auto,*">
-      <TextBlock Text="Пользователи: просмотр, роли, блокировка и удаление" FontSize="16" FontWeight="SemiBold" Foreground="#6E2436" />
+      <TextBlock Text="Пользователи: просмотр, роли, блокировка и удаление" FontSize="16" FontWeight="SemiBold" Foreground="#1B3A4B" />
       <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12">
         <TextBox x:Name="SearchBox" Width="220" Watermark="Логин или роль" />
         <Button Classes="ghost" Content="Найти" Click="OnSearch" />

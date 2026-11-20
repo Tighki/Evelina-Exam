@@ -143,7 +143,10 @@ public partial class AdminWindow : Window
 
     private void OnLogout(object? sender, RoutedEventArgs e)
     {
-        new LoginWindow().Show();
+        var login = new LoginWindow();
+        if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.MainWindow = login;
+        login.Show();
         Close();
     }
 }

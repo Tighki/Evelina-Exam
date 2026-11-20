@@ -25,7 +25,7 @@ public class PuzzleBoard : UserControl
         {
             Width = 320,
             Height = 200,
-            Background = new SolidColorBrush(Color.Parse("#6E2436"))
+            Background = new SolidColorBrush(Color.Parse("#1B3A4B"))
         };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -128,7 +128,7 @@ public class ArtPreview : Control
             return;
 
         _art.Draw(context, new Rect(Bounds.Size));
-        context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.Parse("#6E2436")), 1), new Rect(Bounds.Size));
+        context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.Parse("#1B3A4B")), 1), new Rect(Bounds.Size));
     }
 }
 

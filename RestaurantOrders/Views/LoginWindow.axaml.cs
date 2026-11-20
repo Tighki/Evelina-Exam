@@ -18,7 +18,7 @@ public partial class LoginWindow : Window
     public LoginWindow()
     {
         InitializeComponent();
-        _board = new PuzzleBoard(new RestaurantArt());
+        _board = new PuzzleBoard(new CarArt());
         _board.Changed += (_, _) =>
         {
             if (_board.IsSolved)
@@ -27,7 +27,7 @@ public partial class LoginWindow : Window
                 NextButton.IsVisible = false;
         };
         PuzzleHost.Content = _board;
-        PreviewHost.Content = new ArtPreview(new RestaurantArt());
+        PreviewHost.Content = new ArtPreview(new CarArt());
         DbPathText.Text = "База: " + _db.DisplayPath;
     }
 

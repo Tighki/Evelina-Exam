@@ -11,16 +11,27 @@ public sealed class UserRow
     public int FailedAttempts { get; set; }
 }
 
-public sealed class OrderRow
+public sealed class CarRow
 {
     public int Id { get; set; }
-    public string ItemName { get; set; } = "";
-    public string ItemKind { get; set; } = "Блюдо";
-    public string Quantity { get; set; } = "1";
+    public string Brand { get; set; } = "";
+    public string Model { get; set; } = "";
+    public string Year { get; set; } = "";
+    public string Color { get; set; } = "";
     public string Price { get; set; } = "0";
-    public string TableNumber { get; set; } = "1";
-    public string OrderDate { get; set; } = "";
-    public string Status { get; set; } = "Новый";
+    public string Vin { get; set; } = "";
+    public string Status { get; set; } = "В наличии";
+}
+
+public sealed class SaleRow
+{
+    public int Id { get; set; }
+    public string CarId { get; set; } = "";
+    public string CarLabel { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public string SaleDate { get; set; } = "";
+    public string Amount { get; set; } = "0";
+    public string Manager { get; set; } = "";
 }
 
 public sealed class QueryInfo

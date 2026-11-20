@@ -6,7 +6,7 @@
         CanResize="False"
         WindowStartupLocation="CenterOwner">
   <StackPanel Margin="22" Spacing="8">
-    <TextBlock Text="Новый пользователь" FontSize="22" FontWeight="Bold" Foreground="#6E2436" />
+    <TextBlock Text="Новый пользователь" FontSize="22" FontWeight="Bold" Foreground="#1B3A4B" />
     <TextBlock Text="Логин" />
     <TextBox x:Name="LoginBox" Watermark="Не короче 3 символов" />
     <TextBlock Text="Пароль" />

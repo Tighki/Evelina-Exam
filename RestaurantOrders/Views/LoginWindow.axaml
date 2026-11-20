@@ -1,17 +1,17 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="RestaurantOrders.Views.LoginWindow"
-        Title="Учёт заказов ресторана"
+        Title="Учёт автомобилей автосалона"
         Width="1040" Height="760"
         MinWidth="900" MinHeight="640"
         WindowStartupLocation="CenterScreen"
-        Background="#FBF6F1">
+        Background="#F4F7F8">
   <Grid ColumnDefinitions="300,*">
-    <Border Grid.Column="0" Background="#6E2436" Padding="28">
+    <Border Grid.Column="0" Background="#1B3A4B" Padding="28">
       <StackPanel Spacing="14" VerticalAlignment="Center">
-        <TextBlock Text="ТРИ ПЕЧИ" FontSize="28" FontWeight="Bold" Foreground="#F6E7C1" />
-        <TextBlock Text="Система учёта заказов ресторана" FontSize="16" Foreground="#F3E6D8" TextWrapping="Wrap" />
-        <Border Background="#4E1826" Padding="14" CornerRadius="8" Margin="0,12,0,0">
+        <TextBlock Text="АВТОСАЛОН" FontSize="28" FontWeight="Bold" Foreground="#F6E7C1" />
+        <TextBlock Text="Система учёта автомобилей" FontSize="16" Foreground="#D5E2EA" TextWrapping="Wrap" />
+        <Border Background="#122833" Padding="14" CornerRadius="8" Margin="0,12,0,0">
           <StackPanel Spacing="4">
             <TextBlock Text="Демо-вход" Foreground="#E8A838" FontWeight="SemiBold" />
             <TextBlock Text="admin / admin — администратор" Foreground="White" FontSize="13" TextWrapping="Wrap" />
@@ -27,23 +27,23 @@
 
     <ScrollViewer Grid.Column="1">
       <StackPanel Width="480" HorizontalAlignment="Center" Margin="24,28" Spacing="8">
-        <TextBlock Text="Вход" FontSize="28" FontWeight="Bold" Foreground="#6E2436" />
-        <TextBlock Text="Логин" Foreground="#6E2436" />
+        <TextBlock Text="Вход" FontSize="28" FontWeight="Bold" Foreground="#1B3A4B" />
+        <TextBlock Text="Логин" Foreground="#1B3A4B" />
         <TextBox x:Name="LoginBox" Watermark="Введите логин" />
-        <TextBlock Text="Пароль" Foreground="#6E2436" Margin="0,6,0,0" />
+        <TextBlock Text="Пароль" Foreground="#1B3A4B" Margin="0,6,0,0" />
         <TextBox x:Name="PasswordBox" PasswordChar="●" Watermark="Введите пароль" />
 
         <TextBlock x:Name="MessageText" TextWrapping="Wrap" MinHeight="36" FontSize="14" />
         <Button Classes="accent" Content="Войти" Click="OnLogin" HorizontalAlignment="Left" MinWidth="140" />
 
         <StackPanel x:Name="CaptchaPanel" IsVisible="False" Spacing="8" Margin="0,8,0,0">
-          <TextBlock Text="Капча-пазл" FontWeight="SemiBold" Foreground="#6E2436" />
+          <TextBlock Text="Капча-пазл" FontWeight="SemiBold" Foreground="#1B3A4B" />
           <TextBlock Text="Соберите изображение по образцу: нажмите на два фрагмента, чтобы поменять их местами. Когда пазл сойдётся, появится кнопка «Далее»."
                      TextWrapping="Wrap" Foreground="#5C6B73" FontSize="13" />
           <StackPanel Orientation="Horizontal" Spacing="16">
             <StackPanel Spacing="4">
               <TextBlock Text="Образец" FontSize="12" Foreground="#5C6B73" />
-              <Border Background="#6E2436" Padding="4" CornerRadius="4">
+              <Border Background="#1B3A4B" Padding="4" CornerRadius="4">
                 <ContentControl x:Name="PreviewHost" />
               </Border>
             </StackPanel>

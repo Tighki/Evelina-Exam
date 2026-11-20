@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>RestaurantOrders</RootNamespace>
     <AssemblyName>RestaurantOrders</AssemblyName>
-    <ApplicationTitle>Учёт заказов ресторана</ApplicationTitle>
+    <ApplicationTitle>Учёт автомобилей автосалона</ApplicationTitle>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>

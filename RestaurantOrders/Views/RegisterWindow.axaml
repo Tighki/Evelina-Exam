@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RestaurantOrders.Views.RegisterWindow"
+        Title="Регистрация"
+        Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="22" Spacing="8">
+    <TextBlock Text="Новый пользователь" FontSize="22" FontWeight="Bold" Foreground="#6E2436" />
+    <TextBlock Text="Логин" />
+    <TextBox x:Name="LoginBox" Watermark="Не короче 3 символов" />
+    <TextBlock Text="Пароль" />
+    <TextBox x:Name="PasswordBox" PasswordChar="●" />
+    <TextBlock Text="Повтор пароля" />
+    <TextBox x:Name="ConfirmBox" PasswordChar="●" />
+    <TextBlock Text="Роль" />
+    <ComboBox x:Name="RoleBox" HorizontalAlignment="Stretch" />
+    <TextBlock x:Name="ErrorText" Foreground="#9B2335" TextWrapping="Wrap" MinHeight="20" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button Classes="ghost" Content="Отмена" Click="OnCancel" />
+      <Button Classes="accent" Content="Зарегистрировать" Click="OnSave" />
+    </StackPanel>
+  </StackPanel>
+</Window>

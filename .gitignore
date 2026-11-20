@@ -1,0 +1,15 @@
+.dotnet/
+.dotnet-home/
+.nuget/
+.nuget-http/
+local-feed/
+nupkgs/
+.claude/
+.cursor/
+bin/
+obj/
+*.user
+*.suo
+*.db
+*.db-wal
+*.db-shm

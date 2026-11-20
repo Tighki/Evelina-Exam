@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="RestaurantOrders.Views.UserWindow"
+        Title="Учёт заказов — пользователь"
+        Width="1100" Height="720"
+        WindowStartupLocation="CenterScreen"
+        Background="#FBF6F1">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="#6E2436" Padding="20,14">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel>
+          <TextBlock Text="Учёт заказов ресторана" FontSize="22" FontWeight="Bold" Foreground="White" />
+          <TextBlock x:Name="UserLine" Foreground="#E8A838" FontSize="14" />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="light" Content="Выйти" Click="OnLogout" />
+      </Grid>
+    </Border>
+    <Border DockPanel.Dock="Bottom" Background="#F0E4D8" Padding="16,8">
+      <TextBlock x:Name="StatusLine" FontSize="13" Foreground="#6E2436" />
+    </Border>
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*">
+      <TextBlock Text="Запросы к базе. Изменять данные с этой страницы нельзя."
+                 FontSize="16" FontWeight="SemiBold" Foreground="#6E2436" TextWrapping="Wrap" />
+      <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12">
+        <ComboBox x:Name="QueryBox" Width="360" SelectionChanged="OnQueryChanged" />
+        <TextBlock x:Name="ParamLabel" VerticalAlignment="Center" IsVisible="False" />
+        <TextBox x:Name="ParamBox" Width="180" IsVisible="False" />
+        <Button Classes="accent" Content="Выполнить" Click="OnRun" />
+      </StackPanel>
+      <dg:DataGrid x:Name="ResultGridView" Grid.Row="2"
+                   IsReadOnly="True"
+                   CanUserSortColumns="True"
+                   GridLinesVisibility="All"
+                   HeadersVisibility="Column" />
+    </Grid>
+  </DockPanel>
+</Window>
